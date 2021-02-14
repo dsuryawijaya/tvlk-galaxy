@@ -2,3 +2,5 @@ com/devin/galaxy/currency/CurrencyMaster.java
  com.devin.galaxy.currency.CurrencyMaster
 com/devin/galaxy/Main.java
  com.devin.galaxy.Main
+com/devin/galaxy/currency/CurrencyMain.java
+ com.devin.galaxy.currency.CurrencyMain
