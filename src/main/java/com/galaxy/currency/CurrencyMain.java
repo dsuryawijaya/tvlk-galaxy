@@ -1,4 +1,4 @@
-package com.devin.galaxy.currency;
+package com.galaxy.currency;
 
 import java.util.Date;
 
