@@ -376,13 +376,13 @@ public class Main {
 
         BigDecimal commissionRevenue = ancillary.getCommissionContractingCurrency().add(ancillary.getTotalFareNTAContractingCurrency());
         ancillary.setCommissionRevenue(commissionRevenue);
-        BigDecimal margin = ancillary.getCommissionRevenue().add(ancillary.getTransactionFeeContractingCurrency())
+        BigDecimal margin = ancillary.getCommissionRevenue()
+                .add(ancillary.getTransactionFeeContractingCurrency())
                 .add(ancillary.getPremiumDiscountContractingCurrency())
                 .add(ancillary.getCouponContractingCurrency())
                 .add(ancillary.getPointsContractingCurrency())
                 .add(ancillary.getUniqueCodeContractingCurrency())
-                .add(ancillary.getRebookCostContractingCurrency())
-                .add(ancillary.getInvoiceAmountContractingCurrency());
+                .add(ancillary.getRebookCostContractingCurrency());
         ancillary.setNetMargin(margin);
         return ancillary;
     }
