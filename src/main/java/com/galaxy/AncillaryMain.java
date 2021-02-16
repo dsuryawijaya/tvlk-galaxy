@@ -2,7 +2,7 @@ package com.galaxy;
 
 import com.galaxy.ancillaries.Ancillary;
 import com.galaxy.ancillaries.SalesData;
-import com.galaxy.currency.CurrencyMaster;
+import com.galaxy.currency.CurrencyAccessor;
 import com.galaxy.flight.FlightGroup;
 import com.galaxy.flight.FlightGroups;
 import com.galaxy.flight.RevenueComponent;
@@ -85,19 +85,19 @@ public class AncillaryMain {
             "Amount"
     );
 
-    private static CurrencyMaster currencyMaster = new CurrencyMaster();
     private static SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+    private static CurrencyAccessor currencyAccessor = new CurrencyAccessor();
 
     public static void main(String[] args){
         String folder = "/Users/danielsuryawijaya/traveloka/galaxy/ancillaries/";
         //2018 are using month names
-        List<String> fileNames2018 = getFilesFor2018();
-        for(String fileName : fileNames2018){
-            System.out.println(fileName);
-            SalesData salesData = loadSalesData(folder + "2018/" + fileName);
-            writeAncillariesToFile(folder + "margin/2018/bid-" + fileName, salesData.getAncillaries());
-            writeGroupsToFile(folder + "margin/2018/group-" + fileName, salesData.getGroups());
-        }
+//        List<String> fileNames2018 = getFilesFor2018();
+//        for(String fileName : fileNames2018){
+//            System.out.println(fileName);
+//            SalesData salesData = loadSalesData(folder + "2018/" + fileName);
+//            writeAncillariesToFile(folder + "margin/2018/bid-" + fileName, salesData.getAncillaries());
+//            writeGroupsToFile(folder + "margin/2018/group-" + fileName, salesData.getGroups());
+//        }
         Map<Integer, List<String>> fileNames2019 = getFilesFor2019(folder + "2019/");
         for(Integer month : fileNames2019.keySet()){
             if(month < 8){
@@ -382,6 +382,7 @@ public class AncillaryMain {
             Map<Integer, String> columnMapping = getColumnMapping(iterator.next());
             Long i = 0L;
             while (iterator.hasNext()) {
+                System.out.println(i++);
                 Row currentRow = iterator.next();
                 try {
                     Ancillary ancillary = parseAncillaryRow(currentRow, columnMapping);
@@ -584,15 +585,11 @@ public class AncillaryMain {
         if(ancillary.getCollectingCurrency().equals(ancillary.getContractCurrency())){
             conversionRate = BigDecimal.ONE;
         } else {
-            Double conversionRateInDouble =  currencyMaster.find(
-                    ancillary.getCollectingCurrency(),
-                    ancillary.getContractCurrency(),
-                    bookingIssueDate
-            );
+            Double conversionRateInDouble = currencyAccessor.getRates(ancillary.getCollectingCurrency(), ancillary.getContractCurrency(), bookingIssueDate);
             if(conversionRateInDouble != null){
                 conversionRate = new BigDecimal(conversionRateInDouble);
             } else {
-                conversionRate = BigDecimal.ZERO;
+                throw new RuntimeException("conversion rate not found : " + ancillary.getCollectingCurrency() + " | " + ancillary.getContractCurrency() + " | " + bookingIssueDate);
             }
         }
         if(conversionRate == null){

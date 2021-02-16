@@ -11,14 +11,18 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class CurrencyAccessor {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
+    private Map<String, Double> cache;
 
     public CurrencyAccessor() {
+        cache = new HashMap<>();
         DataSource dataSource = getDataSource();
         this.jdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
     }
@@ -64,7 +68,24 @@ public class CurrencyAccessor {
     }
 
     public Double getRates(String fromCurrency, String toCurrency, Date date) {
-        return getRates(fromCurrency, toCurrency, date.getTime());
+        String hash = hash(fromCurrency, toCurrency, date);
+        Double rates = cache.get(hash);
+        if(rates != null){
+            return rates;
+        } else {
+            rates = getRates(fromCurrency, toCurrency, date.getTime());
+            if(rates != null) {
+                cache.put(hash, rates);
+            }
+        }
+        return rates;
     }
 
+    private String hash(String from, String to, Date date){
+        return from + "-" + to + "-" + sdf.format(date);
+    }
+
+    public void cleanCache(){
+        this.cache = new HashMap<>();
+    }
 }
