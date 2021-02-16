@@ -1,7 +1,11 @@
 package com.galaxy;
 
 import com.galaxy.ancillaries.Ancillary;
+import com.galaxy.ancillaries.SalesData;
 import com.galaxy.currency.CurrencyMaster;
+import com.galaxy.flight.FlightGroup;
+import com.galaxy.flight.FlightGroups;
+import com.galaxy.flight.RevenueComponent;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.ss.usermodel.*;
@@ -17,7 +21,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-public class Main {
+public class AncillaryMain {
 
     private static List<String> parsedColumn = Arrays.asList("Booking Issue Date",
             "Booking ID",
@@ -66,30 +70,151 @@ public class Main {
             "Refund Fee (Contract Currency)",
             "Invoice Amount (Contract Currency)",
             "Net Margin (Contract Currency)",
+            "Net Margin Tag",
             "Status"
     );
+
+    private static List<String> groupHeaders = Arrays.asList(
+            "Period",
+            "Product",
+            "Revenue Components",
+            "Entity",
+            "Transaction Currency",
+            "Tag : Positive / Negative Margin",
+            "Tag : Status",
+            "Amount"
+    );
+
     private static CurrencyMaster currencyMaster = new CurrencyMaster();
     private static SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
 
     public static void main(String[] args){
         String folder = "/Users/danielsuryawijaya/traveloka/galaxy/ancillaries/";
         //2018 are using month names
-        List<String> fileNames = getFilesFor2018();
-        for(String fileName : fileNames){
+        List<String> fileNames2018 = getFilesFor2018();
+        for(String fileName : fileNames2018){
             System.out.println(fileName);
-            List<Ancillary> ancillaries = loadSalesData(folder + "2018/" + fileName);
-            writeToFile(folder + "margin/2018/" + fileName, ancillaries);
-//            group(ancillaries);
+            SalesData salesData = loadSalesData(folder + "2018/" + fileName);
+            writeAncillariesToFile(folder + "margin/2018/bid-" + fileName, salesData.getAncillaries());
+            writeGroupsToFile(folder + "margin/2018/group-" + fileName, salesData.getGroups());
         }
-        //TODO process 2019 2020
+        Map<Integer, List<String>> fileNames2019 = getFilesFor2019(folder + "2019/");
+        for(Integer month : fileNames2019.keySet()){
+            if(month < 8){
+                continue;
+            }
+            SalesData salesData = new SalesData();
+            for(String fileName : fileNames2019.get(month)){
+                salesData.add(loadSalesData(folder + "2019/" + fileName));
+            }
+            String marginFileName = "ancillary_bid_" + month + "2019.xlsx";
+            writeAncillariesToFile(folder + "margin/2019/" + marginFileName, salesData.getAncillaries());
+            String groupFileName = "ancillary_group_" + month + "2019.xlsx";
+            writeGroupsToFile(folder + "margin/2018/group-" + groupFileName, salesData.getGroups());
+        }
+
+        //TODO process 2020
+
     }
 
-    private static void writeToFile(String fileAddress, List<Ancillary> ancillaries){
+    private static Map<Integer, List<String>> getFilesFor2019(String folder){
+        int i = 1;
+        Map<Integer, List<String>> monthFiles = new HashMap<>();
+        File dir = new File(folder);
+        String[] crawledFiles = dir.list();
+
+        for(String crawledFileName : crawledFiles){
+            Integer month = retrieveMonth(crawledFileName);
+            if(month != null){
+                List<String> fileNames = monthFiles.get(month);
+                if(fileNames == null){
+                    fileNames = new ArrayList<>();
+                }
+                fileNames.add(crawledFileName);
+                monthFiles.put(month, fileNames);
+            }
+        }
+
+        return monthFiles;
+    }
+
+    private static Integer retrieveMonth(String fileName){
+        try {
+            return Integer.valueOf(fileName.substring(41,43));
+        } catch (StringIndexOutOfBoundsException e){
+            if(!fileName.equals(".DS_Store")){
+                e.printStackTrace();
+                throw new RuntimeException("invalid file " + fileName);
+            }
+            return null;
+        }
+    }
+
+    private static void writeGroupsToFile(String fileAddress, FlightGroups flightGroups){
+        XSSFWorkbook workbook = new XSSFWorkbook();
+        XSSFSheet sheet = workbook.createSheet("Groups");
+
+        int rowNum = 0;
+        System.out.println("Creating excel groups : " + fileAddress);
+
+        Row headerRow = sheet.createRow(rowNum++);
+
+        int i = 0;
+        for(String headerCell : groupHeaders){
+            Cell cell = headerRow.createCell(i ++);
+            cell.setCellValue(headerCell);
+        }
+
+        for (String groupKey : flightGroups.getGroups().keySet()) {
+            FlightGroup flightGroup = flightGroups.getGroups().get(groupKey);
+            Row row = sheet.createRow(rowNum++);
+            int colNum = 0;
+
+            Cell period = row.createCell(colNum++);
+            period.setCellValue(flightGroup.getPeriod());
+
+            Cell product = row.createCell(colNum++);
+            product.setCellValue(flightGroup.getProduct());
+
+            Cell revenue = row.createCell(colNum++);
+            revenue.setCellValue(flightGroup.getRevenueComponent().getName());
+
+            Cell entity = row.createCell(colNum++);
+            entity.setCellValue(flightGroup.getContractEntity());
+
+            Cell curr = row.createCell(colNum++);
+            curr.setCellValue(flightGroup.getTrxCurrency());
+
+            Cell tagMargin = row.createCell(colNum++);
+            tagMargin.setCellValue(flightGroup.getMarginTag());
+
+            Cell tagStatus = row.createCell(colNum++);
+            tagStatus.setCellValue(flightGroup.getStatus());
+
+            Cell amount = row.createCell(colNum++);
+            amount.setCellValue(flightGroup.getAmount().doubleValue());
+        }
+
+        try {
+            FileOutputStream outputStream = new FileOutputStream(fileAddress);
+            workbook.write(outputStream);
+            outputStream.close();
+            workbook.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println("Done Groups");
+    }
+
+    private static void writeAncillariesToFile(String fileAddress, List<Ancillary> ancillaries){
         XSSFWorkbook workbook = new XSSFWorkbook();
         XSSFSheet sheet = workbook.createSheet("Net Margin");
 
         int rowNum = 0;
-        System.out.println("Creating excel");
+        System.out.println("Creating excel ancillaries : " + fileAddress);
 
         Row headerRow = sheet.createRow(rowNum++);
 
@@ -207,12 +332,7 @@ public class Main {
             Cell marginCont = row.createCell(colNum++);
             marginCont.setCellValue(ancillary.getNetMargin().doubleValue());
             //Net Margin Tag
-            String marginTag = "POSITIVE";
-            if(ancillary.getNetMargin().compareTo(BigDecimal.ZERO) < 0){
-                marginTag = "NEGATIVE";
-            } else if(ancillary.getNetMargin().compareTo(BigDecimal.ZERO) == 0){
-                marginTag = "BALANCED";
-            }
+            String marginTag = getMarginTag(ancillary.getNetMargin());
             Cell marginCell = row.createCell(colNum++);
             marginCell.setCellValue(marginTag);
             //Status
@@ -231,33 +351,28 @@ public class Main {
             e.printStackTrace();
         }
 
-        System.out.println("Done");
+        System.out.println("Done Ancillaries");
+    }
+
+    private static String getMarginTag(BigDecimal netMargin){
+        String marginTag = "POSITIVE";
+        if(netMargin.compareTo(BigDecimal.ZERO) < 0){
+            marginTag = "NEGATIVE";
+        }
+        return marginTag;
     }
 
     private static List<String> getFilesFor2018(){
-        return Arrays.asList("Flight Ancillaries Report 1-30 September 2018.xlsx",
-                "Flight Ancillaries 01-31 October 2018.xlsx",
-                "Flight Ancil 01-30 November 2018.xlsx",
-                "Flight Ancillaries Report Dec 18.xlsx");
+        return Arrays.asList(
+                "Flight Ancillaries September 2018.xlsx",
+                "Flight Ancillaries October 2018.xlsx",
+                "Flight Ancillaries November 2018.xlsx",
+                "Flight Ancillaries December 2018.xlsx");
     }
 
-//    private static List<String> getFilesForMonth(String folder, Integer monthNumber){
-//        File dir = new File(folder);
-//        String[] fileNames = dir.list();
-//        List<String> fileToProcess = new ArrayList<>();
-//        for(String fileName : fileNames){
-//            if(fileName.contains("ERP Flight Ancillary Report between")){
-//                //retrieve for specific month
-//                fileName
-//                fileToProcess.add(fileName);
-//            }
-//        }
-//
-//        return fileToProcess;
-//    }
-//
-    private static List<Ancillary> loadSalesData(String fileName){
-        List<Ancillary> ancillaries = new ArrayList<>();
+    private static SalesData loadSalesData(String fileName){
+        SalesData salesData = new SalesData();
+        System.out.println("processing : " + fileName);
         try {
             File file = new File(fileName);
             OPCPackage opcPackage = OPCPackage.open(file);
@@ -268,8 +383,16 @@ public class Main {
             Long i = 0L;
             while (iterator.hasNext()) {
                 Row currentRow = iterator.next();
-                ancillaries.add(parseAncillaryRow(currentRow, columnMapping));
-                System.out.println(i++);
+                try {
+                    Ancillary ancillary = parseAncillaryRow(currentRow, columnMapping);
+                    FlightGroups flightGroups = parseGroup(ancillary);
+                    salesData.getGroups().upsert(flightGroups);
+                    salesData.getAncillaries().add(ancillary);
+                } catch (Exception e){
+                    e.printStackTrace();
+                    System.out.println("fileName = " + fileName + " | rownum = " + currentRow.getRowNum());
+                    //TODO continue
+                }
             }
             workbook.close();
         } catch (FileNotFoundException e) {
@@ -282,7 +405,118 @@ public class Main {
             e.printStackTrace();
             throw new RuntimeException();
         }
-        return ancillaries;
+        return salesData;
+    }
+
+    private static FlightGroups parseGroup(Ancillary ancillary){
+        FlightGroups groups = new FlightGroups();
+        String marginTag = getMarginTag(ancillary.getNetMargin());
+        String issuedPeriod = ancillary.getIssuedDate().substring(3);
+
+        //trx fee
+        FlightGroup trxFee = new FlightGroup();
+        trxFee.setPeriod(issuedPeriod);
+        trxFee.setContractEntity(ancillary.getContractEntity());
+        trxFee.setMarginTag(marginTag);
+        trxFee.setRevenueComponent(RevenueComponent.TRANSACTION_FEE);
+        trxFee.setProduct("Ancillaries");
+        trxFee.setStatus("Issued");
+        trxFee.setTrxCurrency(ancillary.getCollectingCurrency());
+        trxFee.setAmount(ancillary.getTransactionFeeCollectingCurrency());
+        if(trxFee.getAmount().compareTo(BigDecimal.ZERO) != 0){
+            groups.upsert(trxFee);
+        }
+
+        boolean premium = true;
+        if(ancillary.getPremiumDiscountCollectingCurrency().compareTo(BigDecimal.ZERO) < 0){
+            premium = false;
+        }
+
+        //premium/discount
+        FlightGroup discountPremium = new FlightGroup();
+        discountPremium.setPeriod(issuedPeriod);
+        discountPremium.setContractEntity(ancillary.getContractEntity());
+        discountPremium.setMarginTag(marginTag);
+        discountPremium.setRevenueComponent(premium ? RevenueComponent.PREMIUM : RevenueComponent.DISCOUNT);
+        discountPremium.setProduct("Ancillaries");
+        discountPremium.setStatus("Issued");
+        discountPremium.setTrxCurrency(ancillary.getCollectingCurrency());
+        discountPremium.setAmount(ancillary.getPremiumDiscountCollectingCurrency());
+        if(discountPremium.getAmount().compareTo(BigDecimal.ZERO) != 0){
+            groups.upsert(discountPremium);
+        }
+
+        //coupon
+        FlightGroup coupon = new FlightGroup();
+        coupon.setPeriod(issuedPeriod);
+        coupon.setContractEntity(ancillary.getContractEntity());
+        coupon.setMarginTag(marginTag);
+        coupon.setRevenueComponent(RevenueComponent.COUPON);
+        coupon.setProduct("Ancillaries");
+        coupon.setStatus("Issued");
+        coupon.setTrxCurrency(ancillary.getCollectingCurrency());
+        coupon.setAmount(ancillary.getCouponCollectingCurrency());
+        if(coupon.getAmount().compareTo(BigDecimal.ZERO) != 0){
+            groups.upsert(coupon);
+        }
+
+        //points
+        FlightGroup points = new FlightGroup();
+        points.setPeriod(issuedPeriod);
+        points.setContractEntity(ancillary.getContractEntity());
+        points.setMarginTag(marginTag);
+        points.setRevenueComponent(RevenueComponent.REDEEMED_POINTS);
+        points.setProduct("Ancillaries");
+        points.setStatus("Issued");
+        points.setTrxCurrency(ancillary.getCollectingCurrency());
+        points.setAmount(ancillary.getPointsCollectingCurrency());
+        if(points.getAmount().compareTo(BigDecimal.ZERO) != 0){
+            groups.upsert(points);
+        }
+
+        //uniq code
+        FlightGroup uniqueCode = new FlightGroup();
+        uniqueCode.setPeriod(issuedPeriod);
+        uniqueCode.setContractEntity(ancillary.getContractEntity());
+        uniqueCode.setMarginTag(marginTag);
+        uniqueCode.setRevenueComponent(RevenueComponent.UNIQUE_CODE);
+        uniqueCode.setProduct("Ancillaries");
+        uniqueCode.setStatus("Issued");
+        uniqueCode.setTrxCurrency(ancillary.getCollectingCurrency());
+        uniqueCode.setAmount(ancillary.getUniqueCodeCollectingCurrency());
+        if(uniqueCode.getAmount().compareTo(BigDecimal.ZERO) != 0){
+            groups.upsert(uniqueCode);
+        }
+
+        //rebook
+        FlightGroup rebook = new FlightGroup();
+        rebook.setPeriod(issuedPeriod);
+        rebook.setContractEntity(ancillary.getContractEntity());
+        rebook.setMarginTag(marginTag);
+        rebook.setRevenueComponent(RevenueComponent.REBOOK_COST);
+        rebook.setProduct("Ancillaries");
+        rebook.setStatus("Issued");
+        rebook.setTrxCurrency(ancillary.getCollectingCurrency());
+        rebook.setAmount(ancillary.getRebookCostCollectingCurrency());
+        if(rebook.getAmount().compareTo(BigDecimal.ZERO) != 0){
+            groups.upsert(rebook);
+        }
+
+        //rebook
+        FlightGroup commission = new FlightGroup();
+        commission.setPeriod(issuedPeriod);
+        commission.setContractEntity(ancillary.getContractEntity());
+        commission.setMarginTag(marginTag);
+        commission.setRevenueComponent(RevenueComponent.COMMISSION_REVENUE);
+        commission.setProduct("Ancillaries");
+        commission.setStatus("Issued");
+        commission.setTrxCurrency(ancillary.getCollectingCurrency());
+        commission.setAmount(ancillary.getCommissionContractingCurrency());
+        if(commission.getAmount().compareTo(BigDecimal.ZERO) != 0){
+            groups.upsert(commission);
+        }
+
+        return groups;
     }
 
     private static Ancillary parseAncillaryRow(Row currentRow, Map<Integer, String> columnMapping) {
