@@ -33,7 +33,7 @@ public class CurrencyAccessor {
         String dbUrl = "jdbc:postgresql://localhost:5432/";
 
         HikariConfig hikariConfig = new HikariConfig();
-        hikariConfig.setMaximumPoolSize(1000);
+        hikariConfig.setMaximumPoolSize(8);
         hikariConfig.setJdbcUrl(dbUrl);
         hikariConfig.setUsername(username);
         hikariConfig.setPassword(password);
@@ -43,12 +43,16 @@ public class CurrencyAccessor {
         return dataSource;
     }
 
+    private synchronized String format(Long millis){
+        return sdf.format(millis);
+    }
+
     public Double getRates(String fromCurrency, String toCurrency, Long millis) {
         String query = getRatesQuery();
         MapSqlParameterSource queryParam = new MapSqlParameterSource();
         queryParam.addValue("fromCurrency", fromCurrency);
         queryParam.addValue("toCurrency", toCurrency);
-        queryParam.addValue("dateTime", sdf.format(millis));
+        queryParam.addValue("dateTime", format(millis));
 
         List<Double> result = jdbcTemplate.query(query, queryParam, new RowMapper<Double>() {
             @Override

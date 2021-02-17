@@ -12,14 +12,15 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Stream;
 
 public class AncillaryMain {
 
@@ -91,30 +92,65 @@ public class AncillaryMain {
     public static void main(String[] args){
         String folder = "/Users/danielsuryawijaya/traveloka/galaxy/ancillaries/";
         //2018 are using month names
-//        List<String> fileNames2018 = getFilesFor2018();
-//        for(String fileName : fileNames2018){
-//            System.out.println(fileName);
-//            SalesData salesData = loadSalesData(folder + "2018/" + fileName);
+        List<String> fileNames2018 = getFilesFor2018();
+        for(String fileName : fileNames2018){
+            System.out.println(fileName);
+            SalesData salesData = loadSalesData(folder + "2018/" + fileName);
+
 //            writeAncillariesToFile(folder + "margin/2018/bid-" + fileName, salesData.getAncillaries());
-//            writeGroupsToFile(folder + "margin/2018/group-" + fileName, salesData.getGroups());
-//        }
-        Map<Integer, List<String>> fileNames2019 = getFilesFor2019(folder + "2019/");
-        for(Integer month : fileNames2019.keySet()){
-            if(month < 8){
-                continue;
-            }
-            SalesData salesData = new SalesData();
-            for(String fileName : fileNames2019.get(month)){
-                salesData.add(loadSalesData(folder + "2019/" + fileName));
-            }
-            String marginFileName = "ancillary_bid_" + month + "2019.xlsx";
-            writeAncillariesToFile(folder + "margin/2019/" + marginFileName, salesData.getAncillaries());
-            String groupFileName = "ancillary_group_" + month + "2019.xlsx";
-            writeGroupsToFile(folder + "margin/2018/group-" + groupFileName, salesData.getGroups());
+            writeGroupsToFile(folder + "margin/2018/group-" + fileName, salesData.getGroups());
         }
 
-        //TODO process 2020
+//        Map<Integer, List<String>> fileNames2019 = getFilesFor2019(folder + "2019/");
+//        for(Integer month : fileNames2019.keySet()){
+//            if(month == 8){
+//                continue;
+//            }
+//            SalesData salesData = new SalesData();
+//            for(String fileName : fileNames2019.get(month)){
+//                currencyAccessor.cleanCache();
+//                salesData.add(loadSalesData(folder + "2019/" + fileName));
+//            }
+//            currencyAccessor.cleanCache();
+//            String marginFileName = "ancillary_bid_" + month + "_2019.xlsx";
+//            writeAncillariesToFile(folder + "margin/2019/" + marginFileName, salesData.getAncillaries());
+//            String groupFileName = "ancillary_group_" + month + "_2019.xlsx";
+//            writeGroupsToFile(folder + "margin/2019/group-" + groupFileName, salesData.getGroups());
+//        }
 
+
+//        Map<Integer, List<String>> fileNames2020 = getFilesFor2019(folder + "2020/");
+//        for(Integer month : fileNames2020.keySet()){
+//            SalesData salesData = new SalesData();
+//            for(String fileName : fileNames2020.get(month)){
+//                currencyAccessor.cleanCache();
+//                salesData.add(loadSalesData(folder + "2020/" + fileName));
+//            }
+//            currencyAccessor.cleanCache();
+//            String marginFileName = "ancillary_bid_" + month + "2020.xlsx";
+//            writeAncillariesToFile(folder + "margin/2020/" + marginFileName, salesData.getAncillaries());
+//            String groupFileName = "ancillary_group_" + month + "2020.xlsx";
+//            writeGroupsToFile(folder + "margin/2020/group-" + groupFileName, salesData.getGroups());
+//        }
+
+    }
+
+    private static Map<Long, BigDecimal> retrieveToCheck(String folder){
+        File file = new File(folder + "2018/November 2018.csv");
+        Map<Long, BigDecimal> result = new HashMap<>();
+        try {
+            Scanner myReader = new Scanner(file);
+            myReader.nextLine();
+            while (myReader.hasNextLine()) {
+                String data = myReader.nextLine();
+                String[] split = data.split(",");
+                result.put(Long.valueOf(split[1]), new BigDecimal(split[3]));
+            }
+            myReader.close();
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        return result;
     }
 
     private static Map<Integer, List<String>> getFilesFor2019(String folder){
@@ -225,121 +261,133 @@ public class AncillaryMain {
         }
 
         for (Ancillary ancillary : ancillaries) {
-            Row row = sheet.createRow(rowNum++);
-            int colNum = 0;
-            //issuedDate
-            Cell issuedDate = row.createCell(colNum++);
-            issuedDate.setCellValue(ancillary.getIssuedDate());
-            //BID
-            Cell bid = row.createCell(colNum++);
-            bid.setCellValue(ancillary.getBid().doubleValue());
-            //Locale
-            Cell locale = row.createCell(colNum++);
-            locale.setCellValue(ancillary.getLocale());
-            //Contract Entity
-            Cell contractEntity = row.createCell(colNum++);
-            contractEntity.setCellValue(ancillary.getContractEntity());
-            //Collecting Entity
-            Cell collectingEntity = row.createCell(colNum++);
-            collectingEntity.setCellValue(ancillary.getCollectingEntity());
-            //Transaction Currency (Collecting Currency)
-            Cell trxCurr = row.createCell(colNum++);
-            trxCurr.setCellValue(ancillary.getCollectingCurrency());
-            //Transaction Fee (Collecting Currency)
-            Cell trxFeeColl = row.createCell(colNum++);
-            trxFeeColl.setCellValue(ancillary.getTransactionFeeCollectingCurrency().doubleValue());
-            //Premium (Collecting Currency)
-            Cell premiumColl = row.createCell(colNum++);
-            double premium = 0;
-            if(ancillary.getPremiumDiscountCollectingCurrency().compareTo(BigDecimal.ZERO) > 0){
-                premium = ancillary.getPremiumDiscountCollectingCurrency().doubleValue();
-            }
-            premiumColl.setCellValue(premium);
-            //discount
-            Cell discountColl = row.createCell(colNum++);
-            double discount = 0;
-            if(ancillary.getPremiumDiscountCollectingCurrency().compareTo(BigDecimal.ZERO) < 0){
-                discount = ancillary.getPremiumDiscountCollectingCurrency().doubleValue();
-            }
-            discountColl.setCellValue(discount);
-            //coupon
-            Cell couponColl = row.createCell(colNum++);
-            couponColl.setCellValue(ancillary.getCouponCollectingCurrency().doubleValue());
-            //Redeemed Points (Collecting Currency)
-            Cell pointsColl = row.createCell(colNum++);
-            pointsColl.setCellValue(ancillary.getPointsCollectingCurrency().doubleValue());
-            //Unique Code (Collecting Currency)
-            Cell uniqCodeColl = row.createCell(colNum++);
-            uniqCodeColl.setCellValue(ancillary.getUniqueCodeCollectingCurrency().doubleValue());
-            //Invoice Amount (Collecting Currency)
-            Cell invoiceColl = row.createCell(colNum++);
-            invoiceColl.setCellValue(ancillary.getInvoiceAmountCollectingCurrency().doubleValue());
-            //Rebook Cost (Collecting Currency)
-            Cell rebookColl = row.createCell(colNum++);
-            rebookColl.setCellValue(ancillary.getRebookCostCollectingCurrency().doubleValue());
-            //Reschedule Fee (Collecting Currency)
-            Cell reschedColl = row.createCell(colNum++);
-            reschedColl.setCellValue("N/A");
-            //Refund Fee (Collecting Currency)
-            Cell refundColl = row.createCell(colNum++);
-            refundColl.setCellValue("N/A");
-            //Transaction Currency (Contract Currency)
-            Cell contractCurrency = row.createCell(colNum++);
-            contractCurrency.setCellValue(ancillary.getContractCurrency());
-            //commissionRevenue
-            Cell commissionRevenue = row.createCell(colNum++);
-            BigDecimal totalCommission = ancillary.getCommissionContractingCurrency().add(ancillary.getTotalFareNTAContractingCurrency());
-            commissionRevenue.setCellValue(totalCommission.doubleValue());
-            //Transaction Fee (Contract Currency)
-            Cell trxFeeCont = row.createCell(colNum++);
-            trxFeeCont.setCellValue(ancillary.getTransactionFeeContractingCurrency().doubleValue());
-            //Premium (Contract Currency)
-            Cell premiumCont = row.createCell(colNum++);
-            double premiumContValue = 0;
-            if(ancillary.getPremiumDiscountContractingCurrency().compareTo(BigDecimal.ZERO) > 0){
-                premiumContValue = ancillary.getPremiumDiscountContractingCurrency().doubleValue();
-            }
-            premiumCont.setCellValue(premiumContValue);
-            //Discount (Contract Currency)
-            Cell discountCont = row.createCell(colNum++);
-            double discountContValue = 0;
-            if(ancillary.getPremiumDiscountContractingCurrency().compareTo(BigDecimal.ZERO) < 0){
-                discountContValue = ancillary.getPremiumDiscountContractingCurrency().doubleValue();
-            }
-            discountCont.setCellValue(discountContValue);
-            //Coupon (Contract Currency)
-            Cell couponCont = row.createCell(colNum++);
-            couponCont.setCellValue(ancillary.getCouponContractingCurrency().doubleValue());
-            //Redeemed Points (Contract Currency)
-            Cell pointsCont = row.createCell(colNum++);
-            pointsCont.setCellValue(ancillary.getPointsContractingCurrency().doubleValue());
-            //Unique Code (Contract Currency)
-            Cell uniqCodeCont = row.createCell(colNum++);
-            uniqCodeCont.setCellValue(ancillary.getUniqueCodeContractingCurrency().doubleValue());
-            //Rebook Cost (Contract Currency)
-            Cell rebookCont = row.createCell(colNum++);
-            rebookCont.setCellValue(ancillary.getRebookCostContractingCurrency().doubleValue());
-            //Reschedule Fee (Contract Currency)
-            Cell reschedCont = row.createCell(colNum++);
-            reschedCont.setCellValue("N/A");
-            //Refund Fee (Contract Currency)
-            Cell refundCont = row.createCell(colNum++);
-            refundCont.setCellValue("N/A");
-            //Invoice Amount (Contract Currency)
-            Cell invoiceAmountCont = row.createCell(colNum++);
-            invoiceAmountCont.setCellValue(ancillary.getInvoiceAmountContractingCurrency().doubleValue());
-            //Net Margin
-            Cell marginCont = row.createCell(colNum++);
-            marginCont.setCellValue(ancillary.getNetMargin().doubleValue());
-            //Net Margin Tag
-            String marginTag = getMarginTag(ancillary.getNetMargin());
-            Cell marginCell = row.createCell(colNum++);
-            marginCell.setCellValue(marginTag);
-            //Status
-            Cell status = row.createCell(colNum++);
-            status.setCellValue("ISSUED");
+            final Row row = sheet.createRow(rowNum++);
+            System.out.println("writing row : " + rowNum);
+//            CountDownLatch latch = new CountDownLatch(ancillaries.size());
+//            executorService.submit(new Runnable() {
+//                @Override
+//                public void run() {
+                    int colNum = 0;
+                    //issuedDate
+                    Cell issuedDate = row.createCell(colNum++);
+                    issuedDate.setCellValue(ancillary.getIssuedDate());
+                    //BID
+                    Cell bid = row.createCell(colNum++);
+                    bid.setCellValue(ancillary.getBid().doubleValue());
+                    //Locale
+                    Cell locale = row.createCell(colNum++);
+                    locale.setCellValue(ancillary.getLocale());
+                    //Contract Entity
+                    Cell contractEntity = row.createCell(colNum++);
+                    contractEntity.setCellValue(ancillary.getContractEntity());
+                    //Collecting Entity
+                    Cell collectingEntity = row.createCell(colNum++);
+                    collectingEntity.setCellValue(ancillary.getCollectingEntity());
+                    //Transaction Currency (Collecting Currency)
+                    Cell trxCurr = row.createCell(colNum++);
+                    trxCurr.setCellValue(ancillary.getCollectingCurrency());
+                    //Transaction Fee (Collecting Currency)
+                    Cell trxFeeColl = row.createCell(colNum++);
+                    trxFeeColl.setCellValue(ancillary.getTransactionFeeCollectingCurrency().doubleValue());
+                    //Premium (Collecting Currency)
+                    Cell premiumColl = row.createCell(colNum++);
+                    double premium = 0;
+                    if(ancillary.getPremiumDiscountCollectingCurrency().compareTo(BigDecimal.ZERO) > 0){
+                        premium = ancillary.getPremiumDiscountCollectingCurrency().doubleValue();
+                    }
+                    premiumColl.setCellValue(premium);
+                    //discount
+                    Cell discountColl = row.createCell(colNum++);
+                    double discount = 0;
+                    if(ancillary.getPremiumDiscountCollectingCurrency().compareTo(BigDecimal.ZERO) < 0){
+                        discount = ancillary.getPremiumDiscountCollectingCurrency().doubleValue();
+                    }
+                    discountColl.setCellValue(discount);
+                    //coupon
+                    Cell couponColl = row.createCell(colNum++);
+                    couponColl.setCellValue(ancillary.getCouponCollectingCurrency().doubleValue());
+                    //Redeemed Points (Collecting Currency)
+                    Cell pointsColl = row.createCell(colNum++);
+                    pointsColl.setCellValue(ancillary.getPointsCollectingCurrency().doubleValue());
+                    //Unique Code (Collecting Currency)
+                    Cell uniqCodeColl = row.createCell(colNum++);
+                    uniqCodeColl.setCellValue(ancillary.getUniqueCodeCollectingCurrency().doubleValue());
+                    //Invoice Amount (Collecting Currency)
+                    Cell invoiceColl = row.createCell(colNum++);
+                    invoiceColl.setCellValue(ancillary.getInvoiceAmountCollectingCurrency().doubleValue());
+                    //Rebook Cost (Collecting Currency)
+                    Cell rebookColl = row.createCell(colNum++);
+                    rebookColl.setCellValue(ancillary.getRebookCostCollectingCurrency().doubleValue());
+                    //Reschedule Fee (Collecting Currency)
+                    Cell reschedColl = row.createCell(colNum++);
+                    reschedColl.setCellValue("N/A");
+                    //Refund Fee (Collecting Currency)
+                    Cell refundColl = row.createCell(colNum++);
+                    refundColl.setCellValue("N/A");
+                    //Transaction Currency (Contract Currency)
+                    Cell contractCurrency = row.createCell(colNum++);
+                    contractCurrency.setCellValue(ancillary.getContractCurrency());
+                    //commissionRevenue
+                    Cell commissionRevenue = row.createCell(colNum++);
+                    BigDecimal totalCommission = ancillary.getCommissionContractingCurrency().add(ancillary.getTotalFareNTAContractingCurrency());
+                    commissionRevenue.setCellValue(totalCommission.doubleValue());
+                    //Transaction Fee (Contract Currency)
+                    Cell trxFeeCont = row.createCell(colNum++);
+                    trxFeeCont.setCellValue(ancillary.getTransactionFeeContractingCurrency().doubleValue());
+                    //Premium (Contract Currency)
+                    Cell premiumCont = row.createCell(colNum++);
+                    double premiumContValue = 0;
+                    if(ancillary.getPremiumDiscountContractingCurrency().compareTo(BigDecimal.ZERO) > 0){
+                        premiumContValue = ancillary.getPremiumDiscountContractingCurrency().doubleValue();
+                    }
+                    premiumCont.setCellValue(premiumContValue);
+                    //Discount (Contract Currency)
+                    Cell discountCont = row.createCell(colNum++);
+                    double discountContValue = 0;
+                    if(ancillary.getPremiumDiscountContractingCurrency().compareTo(BigDecimal.ZERO) < 0){
+                        discountContValue = ancillary.getPremiumDiscountContractingCurrency().doubleValue();
+                    }
+                    discountCont.setCellValue(discountContValue);
+                    //Coupon (Contract Currency)
+                    Cell couponCont = row.createCell(colNum++);
+                    couponCont.setCellValue(ancillary.getCouponContractingCurrency().doubleValue());
+                    //Redeemed Points (Contract Currency)
+                    Cell pointsCont = row.createCell(colNum++);
+                    pointsCont.setCellValue(ancillary.getPointsContractingCurrency().doubleValue());
+                    //Unique Code (Contract Currency)
+                    Cell uniqCodeCont = row.createCell(colNum++);
+                    uniqCodeCont.setCellValue(ancillary.getUniqueCodeContractingCurrency().doubleValue());
+                    //Rebook Cost (Contract Currency)
+                    Cell rebookCont = row.createCell(colNum++);
+                    rebookCont.setCellValue(ancillary.getRebookCostContractingCurrency().doubleValue());
+                    //Reschedule Fee (Contract Currency)
+                    Cell reschedCont = row.createCell(colNum++);
+                    reschedCont.setCellValue("N/A");
+                    //Refund Fee (Contract Currency)
+                    Cell refundCont = row.createCell(colNum++);
+                    refundCont.setCellValue("N/A");
+                    //Invoice Amount (Contract Currency)
+                    Cell invoiceAmountCont = row.createCell(colNum++);
+                    invoiceAmountCont.setCellValue(ancillary.getInvoiceAmountContractingCurrency().doubleValue());
+                    //Net Margin
+                    Cell marginCont = row.createCell(colNum++);
+                    marginCont.setCellValue(ancillary.getNetMargin().doubleValue());
+                    //Net Margin Tag
+                    String marginTag = getMarginTag(ancillary.getNetMargin());
+                    Cell marginCell = row.createCell(colNum++);
+                    marginCell.setCellValue(marginTag);
+                    //Status
+                    Cell status = row.createCell(colNum++);
+                    status.setCellValue("ISSUED");
+//                    latch.countDown();
+//                }
+//            });
+//            try {
+//                latch.await();
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
         }
-
         try {
             FileOutputStream outputStream = new FileOutputStream(fileAddress);
             workbook.write(outputStream);
@@ -364,10 +412,10 @@ public class AncillaryMain {
 
     private static List<String> getFilesFor2018(){
         return Arrays.asList(
-                "Flight Ancillaries September 2018.xlsx",
-                "Flight Ancillaries October 2018.xlsx",
-                "Flight Ancillaries November 2018.xlsx",
-                "Flight Ancillaries December 2018.xlsx");
+//                "Flight Ancillaries September 2018.xlsx",
+//                "Flight Ancillaries October 2018.xlsx",
+                "Flight Ancillaries November 2018.xlsx");
+//                "Flight Ancillaries December 2018.xlsx");
     }
 
     private static SalesData loadSalesData(String fileName){
@@ -381,14 +429,20 @@ public class AncillaryMain {
             Iterator<Row> iterator = sheet.iterator();
             Map<Integer, String> columnMapping = getColumnMapping(iterator.next());
             Long i = 0L;
+
             while (iterator.hasNext()) {
-                System.out.println(i++);
+                i++;
+                if(i % 200 == 0){
+                    System.out.println(i);
+                }
                 Row currentRow = iterator.next();
                 try {
                     Ancillary ancillary = parseAncillaryRow(currentRow, columnMapping);
-                    FlightGroups flightGroups = parseGroup(ancillary);
-                    salesData.getGroups().upsert(flightGroups);
-                    salesData.getAncillaries().add(ancillary);
+                    if(ancillary != null){
+                        FlightGroups flightGroups = parseGroup(ancillary);
+                        salesData.getGroups().upsert(flightGroups);
+                        salesData.getAncillaries().add(ancillary);
+                    }
                 } catch (Exception e){
                     e.printStackTrace();
                     System.out.println("fileName = " + fileName + " | rownum = " + currentRow.getRowNum());
@@ -396,6 +450,7 @@ public class AncillaryMain {
                 }
             }
             workbook.close();
+            opcPackage.close();
         } catch (FileNotFoundException e) {
             e.printStackTrace();
             throw new RuntimeException();
@@ -511,8 +566,8 @@ public class AncillaryMain {
         commission.setRevenueComponent(RevenueComponent.COMMISSION_REVENUE);
         commission.setProduct("Ancillaries");
         commission.setStatus("Issued");
-        commission.setTrxCurrency(ancillary.getCollectingCurrency());
-        commission.setAmount(ancillary.getCommissionContractingCurrency());
+        commission.setTrxCurrency(ancillary.getContractCurrency());
+        commission.setAmount(ancillary.getCommissionRevenue());
         if(commission.getAmount().compareTo(BigDecimal.ZERO) != 0){
             groups.upsert(commission);
         }
@@ -520,15 +575,22 @@ public class AncillaryMain {
         return groups;
     }
 
+    private static synchronized String format(Date date){
+        return sdf.format(date);
+    }
+
     private static Ancillary parseAncillaryRow(Row currentRow, Map<Integer, String> columnMapping) {
         Ancillary ancillary = new Ancillary();
+        if(currentRow.getCell(0) == null){
+            return null;
+        }
         for(Integer columnIndex : columnMapping.keySet()){
             String columnName = columnMapping.get(columnIndex);
             if("Booking Issue Date".equals(columnName)){
                 Cell cell = currentRow.getCell(columnIndex);
                 if(cell.getCellType().equals(CellType.NUMERIC)){
                     Date date = cell.getDateCellValue();
-                    ancillary.setIssuedDate(sdf.format(date));
+                    ancillary.setIssuedDate(format(date));
                 } else {
                     ancillary.setIssuedDate(currentRow.getCell(columnIndex).getStringCellValue());
                 }
@@ -577,7 +639,7 @@ public class AncillaryMain {
 
         Date bookingIssueDate;
         try {
-            bookingIssueDate = sdf.parse(ancillary.getIssuedDate());
+            bookingIssueDate = parse(ancillary.getIssuedDate());
         } catch (ParseException e){
             throw new RuntimeException(e);
         }
@@ -616,6 +678,10 @@ public class AncillaryMain {
                 .add(ancillary.getRebookCostContractingCurrency());
         ancillary.setNetMargin(margin);
         return ancillary;
+    }
+
+    private static synchronized Date parse(String date) throws ParseException {
+        return sdf.parse(date);
     }
 
     private static Map<Integer, String> getColumnMapping(Row headerRow){
